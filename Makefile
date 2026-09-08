@@ -1,4 +1,4 @@
-.PHONY: all test format check-format dependencies serve clean clean-all
+.PHONY: all test format check-format dependencies serve clean clean-all submit
 .FORCE:
 
 FRAMEWORK_FILES = $(shell find framework -type f | sed 's/ /\\ /g')
@@ -89,3 +89,9 @@ clean:
 
 clean-all: clean
 	rm -rf deps .gradle traces
+
+submit.tar.gz: .FORCE
+	./gradlew spotlessApply
+	COPYFILE_DISABLE=1 tar -czvf $@ labs/*/src
+
+submit: submit.tar.gz

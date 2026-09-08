@@ -28,7 +28,6 @@ public class PingApplication implements Application {
     }
 
     Ping p = (Ping) command;
-    int i = 1;
     return new Pong(p.value());
   }
 }
