@@ -87,8 +87,7 @@ class ViewServer extends Node {
           idleServers.add(key);
         }
         deadServers.remove(key);
-      }
-      else {
+      } else {
         if (!deadServers.contains(key)) {
           deadServers.add(key);
         }
@@ -110,7 +109,7 @@ class ViewServer extends Node {
     } else if (view.get(1) == null) {
       missingBackup = true;
     }
-    setView(missingPrimary,missingBackup);
+    setView(missingPrimary, missingBackup);
     pingCounter++;
     set(t, PING_CHECK_MILLIS);
   }
@@ -137,7 +136,6 @@ class ViewServer extends Node {
     return new View(currentViewNum, view.getFirst(), view.get(1));
   }
 
-
   private Address nextIdle() {
     // Removes and returns the next idle server, or null if there are none
     return idleServers.isEmpty() ? null : idleServers.removeFirst();
@@ -163,14 +161,15 @@ class ViewServer extends Node {
     if (!missingPrimary) {
       primary = view.getFirst();
     } else if (view == null) {
-      // Startup, ny server can be the first primary.
+      // Startup, any server can be the first primary.
       primary = nextIdle();
       if (primary == null) {
         return;
       }
     } else if (missingBackup) {
       // The primary is gone and there is no backup . No idle server is an
-      // eligible successor, so the service stays stuck in this view. Flaw of the system according ot lab
+      // eligible successor, so the service stays stuck in this view. Flaw of the system according
+      // ot lab
       return;
     } else {
       primary = view.get(1);

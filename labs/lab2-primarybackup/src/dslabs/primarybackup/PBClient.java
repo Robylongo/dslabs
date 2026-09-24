@@ -1,10 +1,15 @@
 package dslabs.primarybackup;
 
+import static dslabs.primarybackup.ClientTimer.CLIENT_RETRY_MILLIS;
+
+import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.AMOResult;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
 import dslabs.framework.Node;
 import dslabs.framework.Result;
+import dslabs.kvstore.KVStore.KVStoreCommand;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -12,8 +17,13 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 class PBClient extends Node implements Client {
   private final Address viewServer;
+  private Address primaryServer;
 
   // Your code here...
+  private int sequenceNumber = 0;
+  private int viewNumber = 0;
+  private AMOCommand request;
+  private AMOResult response;
 
   /* -----------------------------------------------------------------------------------------------
    *  Construction and Initialization
@@ -26,6 +36,8 @@ class PBClient extends Node implements Client {
   @Override
   public synchronized void init() {
     // Your code here...
+
+    send(new GetView(), viewServer);
   }
 
   /* -----------------------------------------------------------------------------------------------
@@ -33,30 +45,65 @@ class PBClient extends Node implements Client {
    * ---------------------------------------------------------------------------------------------*/
   @Override
   public synchronized void sendCommand(Command command) {
-    // Your code here...
+    if (!(command instanceof KVStoreCommand)) {
+      throw new IllegalArgumentException();
+    }
+
+    sequenceNumber++;
+    this.request = new AMOCommand(command, address(), sequenceNumber);
+    this.response = null;
+
+    sendRequest();
+    set(new ClientTimer(request), CLIENT_RETRY_MILLIS);
   }
 
   @Override
   public synchronized boolean hasResult() {
-    // Your code here...
-    return false;
+    return response != null;
   }
 
   @Override
   public synchronized Result getResult() throws InterruptedException {
-    // Your code here...
-    return null;
+    while (response == null) {
+      wait();
+    }
+
+    return response.result();
   }
 
   /* -----------------------------------------------------------------------------------------------
    *  Message Handlers
    * ---------------------------------------------------------------------------------------------*/
   private synchronized void handleReply(Reply m, Address sender) {
-    // Your code here...
+    AMOResult r = m.result();
+    if (r.sequenceNum() == sequenceNumber && response == null) {
+      response = r;
+      notify();
+    }
   }
 
   private synchronized void handleViewReply(ViewReply m, Address sender) {
     // Your code here...
+    if (m.view().viewNum() <= viewNumber) {
+      return;
+    }
+    primaryServer = m.view().primary();
+    viewNumber = m.view().viewNum();
+
+    // primary changes mid request
+    if (request != null && response == null) {
+      sendRequest();
+    }
+  }
+
+  // When it gets a no no reply, send view request
+  private synchronized void handleRejected(Rejected m, Address sender) {
+    if (m.viewNum() <= viewNumber) {
+      return;
+    }
+    primaryServer = null;
+    sendRequest();
+    //    send(new GetView(), viewServer);
   }
 
   // Your code here...
@@ -65,6 +112,26 @@ class PBClient extends Node implements Client {
    *  Timer Handlers
    * ---------------------------------------------------------------------------------------------*/
   private synchronized void onClientTimer(ClientTimer t) {
-    // Your code here...
+    if (request != null && t.command().sequenceNum() == request.sequenceNum() && response == null) {
+      send(new GetView(), viewServer);
+      sendRequest();
+      set(t, CLIENT_RETRY_MILLIS);
+    }
+  }
+
+  /* -----------------------------------------------------------------------------------------------
+   *  Utils
+   * ---------------------------------------------------------------------------------------------*/
+  /**
+   * Sends the outstanding request to the primary we know about. If we don't know of one, asks the
+   * ViewServer for the current view instead.
+   */
+  private void sendRequest() {
+    if (primaryServer == null) {
+      send(new GetView(), viewServer);
+      return;
+    }
+
+    send(new Request(request), primaryServer);
   }
 }
