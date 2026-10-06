@@ -120,7 +120,7 @@ class ViewServer extends Node {
   // Your code here...
   private boolean checkPrimary(Address address) {
     // Checks if address is the primary
-    return view != null && address.equals(view.getFirst());
+    return view != null && address.equals(view.get(0));
   }
 
   private boolean checkBackup(Address address) {
@@ -133,12 +133,12 @@ class ViewServer extends Node {
     if (view == null) {
       return new View(STARTUP_VIEWNUM, null, null);
     }
-    return new View(currentViewNum, view.getFirst(), view.get(1));
+    return new View(currentViewNum, view.get(0), view.get(1));
   }
 
   private Address nextIdle() {
     // Removes and returns the next idle server, or null if there are none
-    return idleServers.isEmpty() ? null : idleServers.removeFirst();
+    return idleServers.isEmpty() ? null : idleServers.remove(0);
   }
 
   /**
@@ -159,7 +159,7 @@ class ViewServer extends Node {
 
     Address primary;
     if (!missingPrimary) {
-      primary = view.getFirst();
+      primary = view.get(0);
     } else if (view == null) {
       // Startup, any server can be the first primary.
       primary = nextIdle();
